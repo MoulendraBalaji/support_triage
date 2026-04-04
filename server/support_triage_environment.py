@@ -57,6 +57,7 @@ class SupportTriageEnvironment(Environment):
         *,
         seed: Optional[int] = None,
         options: Optional[dict] = None,
+        **kwargs,
     ) -> SupportTriageObservation:
         self._state = State(episode_id=str(uuid4()), step_count=0)
         
@@ -78,7 +79,7 @@ class SupportTriageEnvironment(Environment):
             is_resolved=False,
             task_difficulty=task_id,
             done=False,
-            reward=0.0,
+            reward=None,
         )
 
     def step(self, action: SupportTriageAction) -> SupportTriageObservation:
