@@ -40,8 +40,9 @@ Respond with JSON format strictly matching:
             return observation.reward
             
         try:
+            model_name = os.environ.get("MODEL_NAME", "gpt-4o")
             response = await client.chat.completions.create(
-                model="gpt-4o",  # or gpt-4o-mini
+                model=model_name,
                 messages=messages,
                 response_format={"type": "json_object"}
             )
@@ -66,6 +67,8 @@ Respond with JSON format strictly matching:
 async def main():
     if "OPENAI_API_KEY" not in os.environ:
         logger.warning("OPENAI_API_KEY not found in environment. Baseline might fail if missing.")
+    if "MODEL_NAME" not in os.environ:
+        logger.info("MODEL_NAME not found in environment. Defaulting to gpt-4o.")
         
     client = AsyncOpenAI()
     env = SupportTriageEnvironment()
