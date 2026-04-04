@@ -7,11 +7,11 @@ from openai import AsyncOpenAI
 from server.support_triage_environment import SupportTriageEnvironment
 from models import SupportTriageAction
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Mute standard logging as strictly stdout format using START/STEP/END is required
+logging.getLogger().setLevel(logging.ERROR) 
 
-async def run_baseline_on_task(task_id: str, client: AsyncOpenAI, env: SupportTriageEnvironment) -> float:
-    logger.info(f"--- Starting Task: {task_id} ---")
+async def run_baseline_on_task(task_id: str, client: AsyncOpenAI, env: SupportTriageEnvironment, model_name: str) -> float:
+    print(f"[START] Task run for {task_id}")
     observation = env.reset(task_id=task_id)
     
     messages = [
@@ -29,25 +29,27 @@ Respond with JSON format strictly matching:
     ]
     
     for step in range(1, 15):
-        # Format observation
         obs_text = f"Result: {observation.last_command_result}\nResolved: {observation.is_resolved}\nReward: {observation.reward}"
         messages.append({"role": "user", "content": obs_text})
         
-        logger.info(f"Step {step} Obs: {obs_text}")
+        # Flattening newlines for cleaner STEP logs
+        obs_flat = obs_text.replace('\n', ' | ')
+        print(f"[STEP] {step} Observation: {obs_flat}")
         
         if observation.is_resolved or observation.done:
-            logger.info(f"Task {task_id} completed with final reward: {observation.reward}")
+            print(f"[END] Task {task_id} completed. Final Reward: {observation.reward}")
             return observation.reward
             
         try:
-            model_name = os.environ.get("MODEL_NAME", "gpt-4o")
             response = await client.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 response_format={"type": "json_object"}
             )
             content = response.choices[0].message.content
-            logger.info(f"Agent Action: {content}")
+            
+            # Print agent action carefully structured
+            print(f"[STEP] {step} Agent Action: {content.replace(chr(10), '')}")
             action_data = json.loads(content)
             
             action = SupportTriageAction(
@@ -59,30 +61,45 @@ Respond with JSON format strictly matching:
             observation = env.step(action)
             
         except Exception as e:
-            logger.error(f"Error during agent step: {e}")
+            print(f"[END] Task {task_id} Failed due to exception: {e}")
             break
             
     return observation.reward
 
 async def main():
-    if "OPENAI_API_KEY" not in os.environ:
-        logger.warning("OPENAI_API_KEY not found in environment. Baseline might fail if missing.")
-    if "MODEL_NAME" not in os.environ:
-        logger.info("MODEL_NAME not found in environment. Defaulting to gpt-4o.")
+    hf_token = os.environ.get("HF_TOKEN")
+    api_base_url = os.environ.get("API_BASE_URL")
+    model_name = os.environ.get("MODEL_NAME", "gpt-4o")
+
+    # The prompt explicitly requires strictly following these env variables
+    if not hf_token:
+        print("WARNING: HF_TOKEN not found in environment. OpenAI client connection might fail.")
+    if not api_base_url:
+        print("WARNING: API_BASE_URL not found in environment. OpenAI client will default to standard endpoint if not present.")
+
+    # Initialize OpenAI client conforming strictly to the variables
+    client_kwargs = {}
+    if hf_token:
+        client_kwargs['api_key'] = hf_token
+    else:
+        # Fallback for standard key if HF_TOKEN isn't set
+        client_kwargs['api_key'] = os.environ.get("OPENAI_API_KEY", "dummy_key")
         
-    client = AsyncOpenAI()
+    if api_base_url:
+        client_kwargs['base_url'] = api_base_url
+        
+    client = AsyncOpenAI(**client_kwargs)
+    
     env = SupportTriageEnvironment()
     
     tasks = ["easy", "medium", "hard"]
     scores = {}
     
     for t in tasks:
-        score = await run_baseline_on_task(t, client, env)
+        score = await run_baseline_on_task(t, client, env, model_name)
         scores[t] = score
         
-    logger.info("=============================")
-    logger.info(f"BASELINE SCORES: {scores}")
-    logger.info("=============================")
+    print(f"[END] Evaluation complete. Scores: {scores}")
 
 if __name__ == "__main__":
     asyncio.run(main())

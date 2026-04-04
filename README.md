@@ -46,8 +46,19 @@ docker build -t support_triage_env -f server/Dockerfile .
 docker run -p 8000:8000 support_triage_env
 ```
 
+## Evaluation Submission Requirements
+
+Before submitting, ensure the following variables are defined in your environment configuration:
+- `API_BASE_URL`: The API endpoint for the LLM.
+- `MODEL_NAME`: The model identifier to use for inference.
+- `HF_TOKEN`: Your Hugging Face / API key.
+
+The inference script must be named `inference.py` and placed in the root directory of the project.
+Participants must use OpenAI Client for all LLM calls using the above variables.
+Participants must emit structured stdout logs strictly following the `[START]`, `[STEP]`, and `[END]` format defined in the sample inference.py script. Any deviation in field names, ordering, or formatting will result in incorrect evaluation scoring.
+
 ## Baseline Execution
-You can run the baseline inference script using an OpenAI agent. Set `OPENAI_API_KEY` first.
+You can run the baseline inference script locally.
 ```bash
 python inference.py
 ```
