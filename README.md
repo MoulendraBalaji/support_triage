@@ -49,7 +49,7 @@ docker run -p 8000:8000 support_triage_env
 ## Baseline Execution
 You can run the baseline inference script using an OpenAI agent. Set `OPENAI_API_KEY` first.
 ```bash
-python baseline.py
+python inference.py
 ```
 
 ### Baseline Scores (GPT-4o)
