@@ -68,8 +68,8 @@ Respond with JSON format strictly matching:
 
 async def main():
     hf_token = os.environ.get("HF_TOKEN")
-    api_base_url = os.environ.get("API_BASE_URL")
-    model_name = os.environ.get("MODEL_NAME", "gpt-4o")
+    api_base_url = os.environ.get("API_BASE_URL", "http://0.0.0.0:8000")
+    model_name = os.environ.get("MODEL_NAME", "meta-llama/Meta-Llama-3.1-8B-Instruct")
 
     # The prompt explicitly requires strictly following these env variables
     if not hf_token:
