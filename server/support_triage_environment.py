@@ -52,9 +52,18 @@ class SupportTriageEnvironment(Environment):
         self.has_looked_up = False
         self.has_searched_kb = False
 
-    def reset(self, task_id: str = "easy") -> SupportTriageObservation:
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict] = None,
+    ) -> SupportTriageObservation:
         self._state = State(episode_id=str(uuid4()), step_count=0)
         
+        task_id = "easy"
+        if options and "task_id" in options:
+            task_id = options["task_id"]
+             
         if task_id not in TASKS:
              task_id = "easy"
              

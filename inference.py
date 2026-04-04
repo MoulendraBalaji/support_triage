@@ -12,7 +12,7 @@ logging.getLogger().setLevel(logging.ERROR)
 
 async def run_baseline_on_task(task_id: str, client: AsyncOpenAI, env: SupportTriageEnvironment, model_name: str) -> float:
     print(f"[START] Task run for {task_id}")
-    observation = env.reset(task_id=task_id)
+    observation = env.reset(options={"task_id": task_id})
     
     messages = [
         {"role": "system", "content": """You are an AI support triage agent.
