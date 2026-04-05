@@ -1,105 +1,151 @@
+import asyncio
 import os
 import json
-import logging
-import asyncio
-from openai import AsyncOpenAI
+import textwrap
+from typing import List, Optional
+from openai import OpenAI
 
-from server.support_triage_environment import SupportTriageEnvironment
+# Importing our environment and models
+from client import SupportTriageEnv
 from models import SupportTriageAction
 
-# Mute standard logging as strictly stdout format using START/STEP/END is required
-logging.getLogger().setLevel(logging.ERROR) 
+# Configuration from Environment Variables
+HF_TOKEN = os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://api-inference.huggingface.co/v1"
+MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Meta-Llama-3.1-8B-Instruct"
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME") or "support_triage_env:latest"
+TASK_NAME = os.getenv("SUPPORT_TRIAGE_TASK", "easy")
+BENCHMARK = "support_triage"
 
-async def run_baseline_on_task(task_id: str, client: AsyncOpenAI, env: SupportTriageEnvironment, model_name: str) -> float:
-    print(f"[START] Task run for {task_id}")
-    observation = env.reset(options={"task_id": task_id})
+# Parameters
+MAX_STEPS = 10
+TEMPERATURE = 0.0 # Stick to deterministic for triage
+MAX_TOKENS = 150
+SUCCESS_SCORE_THRESHOLD = 0.5 
+
+# For Support Triage, max reward is approx 1.2 across all steps
+MAX_TOTAL_REWARD = 1.0 
+
+SYSTEM_PROMPT = textwrap.dedent("""
+    You are a Customer Support Triage AI. 
+    Your goal is to process tickets accurately.
+    You have these commands:
+    - read_email (arg: ""): Initial reading of the ticket.
+    - lookup_customer (arg: "<email>"): Find customer tier/details.
+    - search_kb (arg: "<query>"): Find policy articles.
+    - reply (arg: "<msg>"): Reply to customer (ends task).
+    - escalate (arg: "<reason>"): Send to engineer (ends task).
     
-    messages = [
-        {"role": "system", "content": """You are an AI support triage agent.
-Your goal is to resolve customer support tickets according to the task difficulty.
-You have the following tools available through your action output:
-- command: "read_email", argument: ""
-- command: "lookup_customer", argument: "<email>"
-- command: "search_kb", argument: "<keywords>"
-- command: "reply", argument: "<response text>"
-- command: "escalate", argument: "<reason>"
+    CRITICAL: ALWAYS respond with a JSON object:
+    {"command": "command_name", "argument": "argument_text"}
+""").strip()
 
-Respond with JSON format strictly matching:
-{"command": "<command_name>", "argument": "<arg>"}"""}
-    ]
-    
-    for step in range(1, 15):
-        obs_text = f"Result: {observation.last_command_result}\nResolved: {observation.is_resolved}\nReward: {observation.reward}"
-        messages.append({"role": "user", "content": obs_text})
-        
-        # Flattening newlines for cleaner STEP logs
-        obs_flat = obs_text.replace('\n', ' | ')
-        print(f"[STEP] {step} Observation: {obs_flat}")
-        
-        if observation.is_resolved or observation.done:
-            print(f"[END] Task {task_id} completed. Final Reward: {observation.reward}")
-            return observation.reward
-            
-        try:
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                response_format={"type": "json_object"}
-            )
-            content = response.choices[0].message.content
-            
-            # Print agent action carefully structured
-            print(f"[STEP] {step} Agent Action: {content.replace(chr(10), '')}")
-            action_data = json.loads(content)
-            
-            action = SupportTriageAction(
-                command=action_data.get("command", ""),
-                argument=action_data.get("argument", "")
-            )
-            
-            messages.append({"role": "assistant", "content": content})
-            observation = env.step(action)
-            
-        except Exception as e:
-            print(f"[END] Task {task_id} Failed due to exception: {e}")
-            break
-            
-    return observation.reward
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
 
-async def main():
-    hf_token = os.environ.get("HF_TOKEN")
-    api_base_url = os.environ.get("API_BASE_URL", "http://0.0.0.0:8000")
-    model_name = os.environ.get("MODEL_NAME", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    # Flatten action for cleaner logs
+    action_flat = action.replace('\n', ' ').strip()
+    print(
+        f"[STEP] step={step} action={action_flat} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True,
+    )
 
-    # The prompt explicitly requires strictly following these env variables
-    if not hf_token:
-        print("WARNING: HF_TOKEN not found in environment. OpenAI client connection might fail.")
-    if not api_base_url:
-        print("WARNING: API_BASE_URL not found in environment. OpenAI client will default to standard endpoint if not present.")
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
-    # Initialize OpenAI client conforming strictly to the variables
-    client_kwargs = {}
-    if hf_token:
-        client_kwargs['api_key'] = hf_token
+def get_model_action(client: OpenAI, observation: str) -> Optional[SupportTriageAction]:
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Current Observation: {observation}\nWhat is your next action?"},
+            ],
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+            response_format={"type": "json_object"}
+        )
+        content = (completion.choices[0].message.content or "").strip()
+        data = json.loads(content)
+        return SupportTriageAction(
+            command=data.get("command", ""),
+            argument=data.get("argument", "")
+        )
+    except Exception as exc:
+        # Fallback or log error
+        return None
+
+async def main() -> None:
+    # Use HF_TOKEN as API key if provided
+    api_key = HF_TOKEN or os.getenv("OPEN_AI_API_KEY") or "none"
+    client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
+
+    # Initialize Environment
+    # We prioritize LOCAL_IMAGE_NAME if set, else assume a local server for testing
+    if os.getenv("LOCAL_IMAGE_NAME"):
+        env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
     else:
-        # Fallback for standard key if HF_TOKEN isn't set
-        client_kwargs['api_key'] = os.environ.get("OPENAI_API_KEY", "dummy_key")
+        # Fallback to local server running on fixed port (defaulting to our fixed 7860)
+        env = SupportTriageEnv(base_url=f"http://localhost:{os.getenv('PORT', '7860')}")
+
+    rewards: List[float] = []
+    steps_taken = 0
+    score = 0.0
+    success = False
+    error_msg = None
+
+    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+
+    try:
+        # reset with specific task
+        result = await env.reset(options={"task_id": TASK_NAME})
+        obs = result.observation
         
-    if api_base_url:
-        client_kwargs['base_url'] = api_base_url
-        
-    client = AsyncOpenAI(**client_kwargs)
-    
-    env = SupportTriageEnvironment()
-    
-    tasks = ["easy", "medium", "hard"]
-    scores = {}
-    
-    for t in tasks:
-        score = await run_baseline_on_task(t, client, env, model_name)
-        scores[t] = score
-        
-    print(f"[END] Evaluation complete. Scores: {scores}")
+        for step in range(1, MAX_STEPS + 1):
+            if result.done:
+                break
+
+            # Format observation for the model
+            obs_context = f"Result of last command: {obs.last_command_result} | Resolved: {obs.is_resolved} | Task: {obs.task_difficulty}"
+            
+            action = get_model_action(client, obs_context)
+            if not action:
+                error_msg = "Model failed to generate valid JSON action"
+                break
+            
+            action_str = f"{action.command}('{action.argument}')"
+
+            result = await env.step(action)
+            obs = result.observation
+            reward = result.reward or 0.0
+            done = result.done
+
+            rewards.append(reward)
+            steps_taken = step
+            
+            log_step(step=step, action=action_str, reward=reward, done=done, error=None)
+
+            if done:
+                break
+
+        total_reward = sum(rewards)
+        score = total_reward / MAX_TOTAL_REWARD
+        score = min(max(score, 0.0), 1.0)
+        success = score >= SUCCESS_SCORE_THRESHOLD
+
+    except Exception as e:
+        error_msg = str(e)
+        # Still need to log steps taken and end if valid
+    finally:
+        try:
+            await env.close()
+        except:
+            pass
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 if __name__ == "__main__":
     asyncio.run(main())

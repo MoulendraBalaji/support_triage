@@ -47,34 +47,21 @@ class SupportTriageEnv(
     def _step_payload(self, action: SupportTriageAction) -> Dict:
         """
         Convert SupportTriageAction to JSON payload for step message.
-
-        Args:
-            action: SupportTriageAction instance
-
-        Returns:
-            Dictionary representation suitable for JSON encoding
         """
         return {
-            "message": action.message,
+            "command": action.command,
+            "argument": action.argument,
         }
 
     def _parse_result(self, payload: Dict) -> StepResult[SupportTriageObservation]:
         """
         Parse server response into StepResult[SupportTriageObservation].
-
-        Args:
-            payload: JSON response data from server
-
-        Returns:
-            StepResult with SupportTriageObservation
         """
         obs_data = payload.get("observation", {})
         observation = SupportTriageObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
+            last_command_result=obs_data.get("last_command_result", ""),
+            is_resolved=obs_data.get("is_resolved", False),
+            task_difficulty=obs_data.get("task_difficulty", "easy"),
         )
 
         return StepResult(
