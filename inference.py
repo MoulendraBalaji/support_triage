@@ -94,9 +94,11 @@ async def main() -> None:
 
     try:
         # Initialize Environment
-        # We prioritize LOCAL_IMAGE_NAME if set, else assume a local server for testing
+        env_url = os.getenv("SUPPORT_TRIAGE_URL")
         if os.getenv("LOCAL_IMAGE_NAME"):
             env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
+        elif env_url:
+            env = SupportTriageEnv(base_url=env_url)
         else:
             # Fallback to local server running on fixed port (defaulting to our fixed 7860)
             env = SupportTriageEnv(base_url=f"http://localhost:{os.getenv('PORT', '7860')}")
