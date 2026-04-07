@@ -84,14 +84,6 @@ async def main() -> None:
     api_key = HF_TOKEN or os.getenv("OPEN_AI_API_KEY") or "none"
     client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
 
-    # Initialize Environment
-    # We prioritize LOCAL_IMAGE_NAME if set, else assume a local server for testing
-    if os.getenv("LOCAL_IMAGE_NAME"):
-        env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
-    else:
-        # Fallback to local server running on fixed port (defaulting to our fixed 7860)
-        env = SupportTriageEnv(base_url=f"http://localhost:{os.getenv('PORT', '7860')}")
-
     rewards: List[float] = []
     steps_taken = 0
     score = 0.0
@@ -101,6 +93,14 @@ async def main() -> None:
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
 
     try:
+        # Initialize Environment
+        # We prioritize LOCAL_IMAGE_NAME if set, else assume a local server for testing
+        if os.getenv("LOCAL_IMAGE_NAME"):
+            env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
+        else:
+            # Fallback to local server running on fixed port (defaulting to our fixed 7860)
+            env = SupportTriageEnv(base_url=f"http://localhost:{os.getenv('PORT', '7860')}")
+
         # reset with specific task
         result = await env.reset(options={"task_id": TASK_NAME})
         obs = result.observation
@@ -139,12 +139,15 @@ async def main() -> None:
 
     except Exception as e:
         error_msg = str(e)
-        # Still need to log steps taken and end if valid
+        print(f"[ERROR] {error_msg}", flush=True)
+        import traceback
+        traceback.print_exc()
     finally:
-        try:
-            await env.close()
-        except:
-            pass
+        if 'env' in locals() and env:
+            try:
+                await env.close()
+            except:
+                pass
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 if __name__ == "__main__":

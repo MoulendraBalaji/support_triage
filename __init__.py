@@ -6,8 +6,8 @@
 
 """Support Triage Environment."""
 
-from .client import SupportTriageEnv
-from .models import SupportTriageAction, SupportTriageObservation
+from client import SupportTriageEnv
+from models import SupportTriageAction, SupportTriageObservation
 
 __all__ = [
     "SupportTriageAction",
