@@ -26,7 +26,7 @@ SUCCESS_SCORE_THRESHOLD = 0.5
 # For Support Triage, max reward is approx 1.2 across all steps
 MAX_TOTAL_REWARD = 1.0 
 
-SYSTEM_PROMPT = textwrap.dedent("""
+SYSTEM_PROMPT = textwrap.dedent('''
     You are a Customer Support Triage AI. 
     Your goal is to process tickets accurately.
     You have these commands:
@@ -38,7 +38,7 @@ SYSTEM_PROMPT = textwrap.dedent("""
     
     CRITICAL: ALWAYS respond with a JSON object:
     {"command": "command_name", "argument": "argument_text"}
-""").strip()
+''').strip()
 
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
