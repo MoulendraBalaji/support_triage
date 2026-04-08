@@ -6,12 +6,16 @@ from typing import List, Optional
 from openai import OpenAI
 
 # Importing our environment and models
-from client import SupportTriageEnv
-from models import SupportTriageAction
+try:
+    from .client import SupportTriageEnv
+    from .models import SupportTriageAction
+except (ImportError, ValueError):
+    from client import SupportTriageEnv
+    from models import SupportTriageAction
 
 # Configuration from Environment Variables
 HF_TOKEN = os.getenv("HF_TOKEN")
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://api-inference.huggingface.co/v1"
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Meta-Llama-3.1-8B-Instruct"
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME") or "support_triage_env:latest"
 TASK_NAME = os.getenv("SUPPORT_TRIAGE_TASK", "easy")
@@ -76,7 +80,7 @@ def get_model_action(client: OpenAI, observation: str) -> Optional[SupportTriage
             argument=data.get("argument", "")
         )
     except Exception as exc:
-        # Fallback or log error
+        print(f"[ERROR] get_model_action failed: {exc}", flush=True)
         return None
 
 async def main() -> None:
@@ -94,7 +98,7 @@ async def main() -> None:
 
     try:
         # Initialize Environment
-        env_url = os.getenv("SUPPORT_TRIAGE_URL")
+        env_url = os.getenv("ENV_URL") or os.getenv("SUPPORT_TRIAGE_URL")
         if os.getenv("LOCAL_IMAGE_NAME"):
             env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
         elif env_url:
@@ -119,7 +123,9 @@ async def main() -> None:
                 error_msg = "Model failed to generate valid JSON action"
                 break
             
-            action_str = f"{action.command}('{action.argument}')"
+            # SPEC REQUIREMENT: action=<action_name> 
+            # We log the command name only to be safe with strict parsers
+            action_name = action.command 
 
             result = await env.step(action)
             obs = result.observation
@@ -129,7 +135,7 @@ async def main() -> None:
             rewards.append(reward)
             steps_taken = step
             
-            log_step(step=step, action=action_str, reward=reward, done=done, error=None)
+            log_step(step=step, action=action_name, reward=reward, done=done, error=None)
 
             if done:
                 break

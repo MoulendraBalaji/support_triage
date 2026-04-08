@@ -36,11 +36,18 @@ except Exception as e:  # pragma: no cover
     ) from e
 
 try:
-    from ..models import SupportTriageAction, SupportTriageObservation
     from .support_triage_environment import SupportTriageEnvironment
-except ImportError:
-    from models import SupportTriageAction, SupportTriageObservation
-    from server.support_triage_environment import SupportTriageEnvironment
+    from ..models import SupportTriageAction, SupportTriageObservation
+except (ImportError, ValueError):
+    try:
+        from server.support_triage_environment import SupportTriageEnvironment
+        from models import SupportTriageAction, SupportTriageObservation
+    except ImportError:
+        import sys
+        import os
+        sys.path.append(os.getcwd())
+        from server.support_triage_environment import SupportTriageEnvironment
+        from models import SupportTriageAction, SupportTriageObservation
 
 
 # Create the app with web interface and README integration
@@ -78,6 +85,10 @@ def main(host: str = "0.0.0.0", port: int = 7860):
 @app.get("/")
 async def root():
     return {"status": "running", "environment": "SupportTriageEnvironment"}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     main()

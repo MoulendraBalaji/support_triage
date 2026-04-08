@@ -6,6 +6,6 @@
 
 """Support Triage environment server components."""
 
-from server.support_triage_environment import SupportTriageEnvironment
+from .support_triage_environment import SupportTriageEnvironment
 
 __all__ = ["SupportTriageEnvironment"]
