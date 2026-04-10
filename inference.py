@@ -15,8 +15,8 @@ except (ImportError, ValueError):
 
 # Configuration from Environment Variables
 HF_TOKEN = os.getenv("HF_TOKEN")
-# Note: API_BASE_URL is for programmatic access; it returns 404 in a browser by design.
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://api-inference.huggingface.co/v1"
+# Note: Use router.huggingface.co as the base URL for the API. This will return 404 in a browser but is required for code.
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Llama-3.1-8B-Instruct"
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME") or "support_triage_env:latest"
 # Default to your Space URL if no environment URL is provided
