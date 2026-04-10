@@ -107,22 +107,23 @@ class SupportTriageEnvironment(Environment):
                 reward -= 0.1
                 
         elif cmd == "search_kb":
-            query_words = arg.split()
-            matched = False
+            query_words = arg.lower().split()
+            matched_articles = set()
             for word in query_words:
-                if word in ["password", "reset"]:
-                    result += "Found KB Article (Password): " + KB_ARTICLES["password_reset"] + "\n"
-                    matched = True
-                elif word in ["refund", "policy", "pro"]:
-                    result += "Found KB Article (Refunds): " + KB_ARTICLES["refund_policy"] + "\n"
-                    matched = True
-                elif word in ["down", "enterprise", "outage", "escalate"]:
-                    result += "Found KB Article (Enterprise Outage): " + KB_ARTICLES["enterprise_support"] + "\n"
-                    matched = True
-                    
-            if not matched:
-                result = "No KB articles found matching your query."
+                if word in ["password", "reset", "forgot", "locked"]:
+                    matched_articles.add("password_reset")
+                elif word in ["refund", "policy", "return", "money"]:
+                    matched_articles.add("refund_policy")
+                elif word in ["down", "enterprise", "outage", "escalate", "broken"]:
+                    matched_articles.add("enterprise_support")
+            
+            if not matched_articles:
+                result = "No KB articles found matching your query. Suggestions: password, reset, refund, outage."
             else:
+                for art_id in matched_articles:
+                    title = art_id.replace("_", " ").title()
+                    result += f"Found KB Article ({title}): {KB_ARTICLES[art_id]}\n"
+                
                 if not self.has_searched_kb:
                     # Check if query matches expected queries for current task
                     expected = self.task_data["expected_kb_query"]

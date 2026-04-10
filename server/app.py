@@ -4,6 +4,8 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
+
 """
 FastAPI application for the Support Triage Environment.
 
@@ -37,17 +39,13 @@ except Exception as e:  # pragma: no cover
 
 try:
     from .support_triage_environment import SupportTriageEnvironment
+except (ImportError, ValueError):
+    from server.support_triage_environment import SupportTriageEnvironment
+
+try:
     from ..models import SupportTriageAction, SupportTriageObservation
 except (ImportError, ValueError):
-    try:
-        from server.support_triage_environment import SupportTriageEnvironment
-        from models import SupportTriageAction, SupportTriageObservation
-    except ImportError:
-        import sys
-        import os
-        sys.path.append(os.getcwd())
-        from server.support_triage_environment import SupportTriageEnvironment
-        from models import SupportTriageAction, SupportTriageObservation
+    from models import SupportTriageAction, SupportTriageObservation
 
 
 # Create the app with web interface and README integration
@@ -60,26 +58,19 @@ app = create_app(
 )
 
 
-def main(host: str = "0.0.0.0", port: int = 7860):
+def main():
     """
-    Entry point for direct execution via uv run or python -m.
-
-    This function enables running the server without Docker:
-        uv run --project . server
-        uv run --project . server --port 7860
-        python -m support_triage.server.app
-
-    Args:
-        host: Host address to bind to (default: "0.0.0.0")
-        port: Port number to listen on (default: 7860)
-
-    For production deployments, consider using uvicorn directly with
-    multiple workers:
-        uvicorn support_triage.server.app:app --workers 4
+    Entry point for direct execution.
     """
+    import argparse
     import uvicorn
 
-    uvicorn.run(app, host=host, port=port)
+    parser = argparse.ArgumentParser(description="Run the Support Triage Environment server.")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host address to bind to")
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", 7860)), help="Port number to listen on")
+    
+    args = parser.parse_args()
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 @app.get("/")

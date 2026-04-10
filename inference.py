@@ -3,7 +3,7 @@ import os
 import json
 import textwrap
 from typing import List, Optional
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 # Importing our environment and models
 try:
@@ -32,15 +32,25 @@ MAX_TOTAL_REWARD = 1.0
 
 SYSTEM_PROMPT = textwrap.dedent('''
     You are a Customer Support Triage AI. 
-    Your goal is to process tickets accurately.
-    You have these commands:
-    - read_email (arg: ""): Initial reading of the ticket.
-    - lookup_customer (arg: "<email>"): Find customer tier/details.
-    - search_kb (arg: "<query>"): Find policy articles.
-    - reply (arg: "<msg>"): Reply to customer (ends task).
-    - escalate (arg: "<reason>"): Send to engineer (ends task).
+    Your goal is to process tickets accurately and efficiently.
     
-    CRITICAL: ALWAYS respond with a JSON object:
+    COMMANDS:
+    - read_email (arg: ""): Call this first to see the ticket.
+    - lookup_customer (arg: "<email_address>"): Call this with the email found in the ticket.
+    - search_kb (arg: "<keywords>"): Call this with keywords related to the problem.
+    - reply (arg: "<message>"): Send the final solution to the customer.
+    - escalate (arg: "<reason>"): Send to engineer if it's an Enterprise outage.
+    
+    WORKFLOW:
+    1. Call 'read_email' first.
+    2. Then 'lookup_customer' with the email found.
+    3. Then 'search_kb' with problem keywords.
+    4. Finally 'reply' or 'escalate'.
+    
+    CRITICAL:
+    - NEVER put the "Current Observation" or "Result of last command" in the 'argument' field.
+    - Only use the arguments defined above.
+    - ALWAYS respond with a JSON object:
     {"command": "command_name", "argument": "argument_text"}
 ''').strip()
 
@@ -61,9 +71,9 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
-def get_model_action(client: OpenAI, observation: str) -> Optional[SupportTriageAction]:
+async def get_model_action(client: AsyncOpenAI, observation: str) -> Optional[SupportTriageAction]:
     try:
-        completion = client.chat.completions.create(
+        completion = await client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -85,8 +95,12 @@ def get_model_action(client: OpenAI, observation: str) -> Optional[SupportTriage
 
 async def main() -> None:
     # Use HF_TOKEN as API key if provided
-    api_key = HF_TOKEN or os.getenv("OPEN_AI_API_KEY") or "none"
-    client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
+    api_key = HF_TOKEN or os.getenv("OPEN_AI_API_KEY")
+    if not api_key:
+        print("[WARNING] No HF_TOKEN or OPEN_AI_API_KEY found. Inference will likely fail with 401.", flush=True)
+        api_key = "none"
+        
+    client = AsyncOpenAI(base_url=API_BASE_URL, api_key=api_key)
 
     rewards: List[float] = []
     steps_taken = 0
@@ -118,7 +132,8 @@ async def main() -> None:
             # Format observation for the model
             obs_context = f"Result of last command: {obs.last_command_result} | Resolved: {obs.is_resolved} | Task: {obs.task_difficulty}"
             
-            action = get_model_action(client, obs_context)
+            print(f"[DEBUG] Sending Context: {obs_context}")
+            action = await get_model_action(client, obs_context)
             if not action:
                 error_msg = "Model failed to generate valid JSON action"
                 break
@@ -126,6 +141,7 @@ async def main() -> None:
             # SPEC REQUIREMENT: action=<action_name> 
             # We log the command name only to be safe with strict parsers
             action_name = action.command 
+            print(f"[DEBUG] Action received: {action_name} {action.argument}")
 
             result = await env.step(action)
             obs = result.observation
