@@ -15,9 +15,11 @@ except (ImportError, ValueError):
 
 # Configuration from Environment Variables
 HF_TOKEN = os.getenv("HF_TOKEN")
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Meta-Llama-3.1-8B-Instruct"
+API_BASE_URL = os.getenv("API_BASE_URL") or "https://api-inference.huggingface.co/v1"
+MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Llama-3.1-8B-Instruct"
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME") or "support_triage_env:latest"
+# Default to your Space URL if no environment URL is provided
+ENV_URL = os.getenv("ENV_URL") or os.getenv("SUPPORT_TRIAGE_URL") or "https://moulendrabalaji-2007-support-triage.hf.space"
 TASK_NAME = os.getenv("SUPPORT_TRIAGE_TASK", "easy")
 BENCHMARK = "support_triage"
 
@@ -118,13 +120,12 @@ async def main() -> None:
 
     try:
         # Initialize Environment
-        env_url = os.getenv("ENV_URL") or os.getenv("SUPPORT_TRIAGE_URL")
         if os.getenv("LOCAL_IMAGE_NAME"):
             env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
-        elif env_url:
-            env = SupportTriageEnv(base_url=env_url)
+        elif ENV_URL:
+            env = SupportTriageEnv(base_url=ENV_URL)
         else:
-            # Fallback to local server running on fixed port (defaulting to our fixed 7860)
+            # Fallback to local server
             env = SupportTriageEnv(base_url=f"http://localhost:{os.getenv('PORT', '7860')}")
 
         # reset with specific task
