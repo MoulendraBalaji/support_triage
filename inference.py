@@ -15,7 +15,7 @@ except (ImportError, ValueError):
 
 # Configuration from Environment Variables
 HF_TOKEN = os.getenv("HF_TOKEN")
-# Note: Use router.huggingface.co as the base URL for the API. This will return 404 in a browser but is required for code.
+# Note: Use router.huggingface.co as the base URL for the API. This returns 404 in browser but is required for code.
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Llama-3.1-8B-Instruct"
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME") or "support_triage_env:latest"
@@ -29,9 +29,6 @@ MAX_STEPS = 10
 TEMPERATURE = 0.0 # Stick to deterministic for triage
 MAX_TOKENS = 150
 SUCCESS_SCORE_THRESHOLD = 0.5 
-
-# For Support Triage, max reward is approx 1.2 across all steps
-MAX_TOTAL_REWARD = 1.0 
 
 SYSTEM_PROMPT = textwrap.dedent('''
     You are a Customer Support Triage AI. 
@@ -117,76 +114,65 @@ async def main() -> None:
         
     client = AsyncOpenAI(base_url=API_BASE_URL, api_key=api_key)
 
-    rewards: List[float] = []
-    steps_taken = 0
-    score = 0.0
-    success = False
-    error_msg = None
+    # We will run all 3 tasks (easy, medium, hard) to satisfy the "at least 3 tasks" requirement
+    tasks_to_run = ["easy", "medium", "hard"]
+    
+    for task_id in tasks_to_run:
+        rewards = []
+        steps_taken = 0
+        score = 0.0
+        success = False
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+        log_start(task_id, BENCHMARK, MODEL_NAME)
 
-    try:
-        # Initialize Environment
-        if os.getenv("LOCAL_IMAGE_NAME"):
-            env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
-        elif ENV_URL:
-            env = SupportTriageEnv(base_url=ENV_URL)
-        else:
-            # Fallback to local server
-            env = SupportTriageEnv(base_url=f"http://localhost:{os.getenv('PORT', '7860')}")
+        try:
+            # Initialize Environment
+            if os.getenv("LOCAL_IMAGE_NAME"):
+                env = await SupportTriageEnv.from_docker_image(LOCAL_IMAGE_NAME)
+            elif ENV_URL:
+                env = SupportTriageEnv(base_url=ENV_URL)
+            else:
+                env = SupportTriageEnv(base_url=f"http://localhost:{os.getenv('PORT', '7860')}")
 
-        # reset with specific task
-        result = await env.reset(options={"task_id": TASK_NAME})
-        obs = result.observation
-        
-        for step in range(1, MAX_STEPS + 1):
-            if result.done:
-                break
-
-            # Format observation for the model
-            obs_context = f"Result of last command: {obs.last_command_result} | Resolved: {obs.is_resolved} | Task: {obs.task_difficulty}"
-            
-            print(f"[DEBUG] Sending Context: {obs_context}")
-            action = await get_model_action(client, obs_context)
-            if not action:
-                error_msg = "Model failed to generate valid JSON action"
-                break
-            
-            # SPEC REQUIREMENT: action=<action_name> 
-            # We log the command name only to be safe with strict parsers
-            action_name = action.command 
-            print(f"[DEBUG] Action received: {action_name} {action.argument}")
-
-            result = await env.step(action)
+            # reset with specific task
+            result = await env.reset(options={"task_id": task_id})
             obs = result.observation
-            reward = result.reward or 0.0
-            done = result.done
-
-            rewards.append(reward)
-            steps_taken = step
             
-            log_step(step=step, action=action_name, reward=reward, done=done, error=None)
+            for step in range(1, MAX_STEPS + 1):
+                if result.done:
+                    break
 
-            if done:
-                break
+                obs_context = f"Result of last command: {obs.last_command_result} | Resolved: {obs.is_resolved} | Task: {obs.task_difficulty}"
+                action = await get_model_action(client, obs_context)
+                if not action:
+                    break
+                
+                result = await env.step(action)
+                obs = result.observation
+                reward = result.reward or 0.0
+                
+                rewards.append(reward)
+                steps_taken = step
+                log_step(step=step, action=action.command, reward=reward, done=result.done, error=None)
 
-        total_reward = sum(rewards)
-        score = total_reward / MAX_TOTAL_REWARD
-        score = min(max(score, 0.0), 1.0)
-        success = score >= SUCCESS_SCORE_THRESHOLD
+                if result.done:
+                    break
 
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[ERROR] {error_msg}", flush=True)
-        import traceback
-        traceback.print_exc()
-    finally:
-        if 'env' in locals() and env:
-            try:
-                await env.close()
-            except:
-                pass
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+            total_reward = sum(rewards)
+            # Map reward to (0, 1) range
+            # Easy/Medium/Hard have different max rewards. 
+            # We use a formula that ensures result is strictly in (0, 1)
+            raw_score = max(0.0, min(1.0, (total_reward + 1.0) / 3.0))
+            score = 0.05 + (raw_score * 0.9) # Range [0.05, 0.95]
+            
+            success = obs.is_resolved and score >= 0.4
+
+        except Exception as e:
+            print(f"[ERROR] Task {task_id} failed: {e}", flush=True)
+            score = 0.01 # Minimum non-zero score for failure
+        finally:
+            log_end(success, steps_taken, score, rewards)
+            await asyncio.sleep(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
