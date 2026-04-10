@@ -32,10 +32,10 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-def main():
+def main(host: str = "0.0.0.0", port: int = None):
     """Entry point for direct execution."""
-    host = "0.0.0.0"
-    port = int(os.getenv("PORT", 7860))
+    if port is None:
+        port = int(os.getenv("PORT", 7860))
     uvicorn.run(app, host=host, port=port)
 
 if __name__ == "__main__":
