@@ -96,9 +96,15 @@ async def get_model_action(client: AsyncOpenAI, observation: str) -> Optional[Su
 async def main() -> None:
     # Use HF_TOKEN as API key if provided
     api_key = HF_TOKEN or os.getenv("OPEN_AI_API_KEY")
-    if not api_key:
-        print("[WARNING] No HF_TOKEN or OPEN_AI_API_KEY found. Inference will likely fail with 401.", flush=True)
-        api_key = "none"
+    
+    if not api_key or api_key == "none":
+        print("="*60)
+        print("[CRITICAL] API Token Missing!")
+        print("Please set the HF_TOKEN environment variable:")
+        print("  Windows: $env:HF_TOKEN='your_token'")
+        print("  Linux/Mac: export HF_TOKEN='your_token'")
+        print("="*60)
+        return
         
     client = AsyncOpenAI(base_url=API_BASE_URL, api_key=api_key)
 
