@@ -1,4 +1,7 @@
-__pycache__/
-.venv/
+token.txt
+__pycache__
 *.pyc
+.venv
 .env
+out.txt
+test_env.py

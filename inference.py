@@ -15,6 +15,7 @@ except (ImportError, ValueError):
 
 # Configuration from Environment Variables
 HF_TOKEN = os.getenv("HF_TOKEN")
+# Note: API_BASE_URL is for programmatic access; it returns 404 in a browser by design.
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://api-inference.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "meta-llama/Llama-3.1-8B-Instruct"
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME") or "support_triage_env:latest"
@@ -96,13 +97,19 @@ async def get_model_action(client: AsyncOpenAI, observation: str) -> Optional[Su
         return None
 
 async def main() -> None:
-    # Use HF_TOKEN as API key if provided
-    api_key = HF_TOKEN or os.getenv("OPEN_AI_API_KEY")
+    # Try to read token from token.txt or environment
+    api_key = os.getenv("HF_TOKEN") or os.getenv("OPEN_AI_API_KEY")
+    
+    if not api_key:
+        token_file = os.path.join(os.path.dirname(__file__), "token.txt")
+        if os.path.exists(token_file):
+            with open(token_file, "r") as f:
+                api_key = f.read().strip()
     
     if not api_key or api_key == "none":
         print("="*60)
         print("[CRITICAL] API Token Missing!")
-        print("Please set the HF_TOKEN environment variable:")
+        print("Either set the HF_TOKEN environment variable or put it in token.txt")
         print("  Windows: $env:HF_TOKEN='your_token'")
         print("  Linux/Mac: export HF_TOKEN='your_token'")
         print("="*60)
