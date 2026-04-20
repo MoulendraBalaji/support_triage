@@ -15,6 +15,9 @@ try:
 except (ImportError, ValueError):
     from models import SupportTriageAction, SupportTriageObservation
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 # Create the app
 app = create_app(
     SupportTriageEnvironment,
@@ -24,9 +27,20 @@ app = create_app(
     max_concurrent_envs=1,
 )
 
+# Mount frontend files
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
 @app.get("/")
 async def root():
-    return {"status": "running", "environment": "SupportTriageEnvironment"}
+    return FileResponse("frontend/index.html")
+
+@app.get("/style.css")
+async def style():
+    return FileResponse("frontend/style.css")
+
+@app.get("/script.js")
+async def script():
+    return FileResponse("frontend/script.js")
 
 @app.get("/health")
 async def health():

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Triage OpenEnv</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <header class="hf-header">
+        <div class="header-left">
+            <span class="header-icon">🤗</span>
+            <span class="breadcrumb">Spaces / <span class="repo-name">moulendrabalaji-2007/support-triage</span></span>
+            <span class="status-badge"><span class="pulse"></span> Running</span>
+        </div>
+        <nav class="header-nav">
+            <a href="#" class="active">App</a>
+            <a href="#">Files</a>
+            <a href="#">Community</a>
+            <a href="#">Settings</a>
+        </nav>
+    </header>
+
+    <main class="dashboard">
+        <div class="page-title-section">
+            <div class="logo-box">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L4 7V17L12 22L20 17V7L12 2Z" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 22V12" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 12L20 7" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 12L4 7" stroke="#8B5CF6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h1>Support Triage OpenEnv</h1>
+            <span class="tag">openenv</span>
+            <span class="version">v1.0.0</span>
+            <div class="live-status">
+                <span class="dot"></span> Live
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="current-issue-card">
+                <h2 class="card-label">CURRENT ISSUE</h2>
+                <div class="episode-status">
+                    <h3 class="status-title">Episode Complete</h3>
+                    <p class="status-detail">Processed 5 issues in 5 steps</p>
+                    <p class="reward-info">Total reward accumulated: <span class="highlight">0.660</span></p>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-primary">Run Again</button>
+                        <button class="btn btn-secondary">Try Another Task</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-panel">
+                <h2 class="card-label">EPISODE STATS</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-value">4</span>
+                        <span class="stat-name">STEPS</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">1</span>
+                        <span class="stat-name">REMAINING</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">6</span>
+                        <span class="stat-name">BUDGET</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value">0.34</span>
+                        <span class="stat-name">REWARD</span>
+                    </div>
+                </div>
+                
+                <div class="progress-section">
+                    <div class="progress-header">
+                        <span>Progress</span>
+                        <span>80%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 80%;"></div>
+                    </div>
+                </div>
+
+                <div class="score-card">
+                    <span class="score-value">0.400</span>
+                    <span class="score-label">GRADER SCORE</span>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
